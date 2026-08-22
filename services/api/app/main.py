@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import anthropic
+from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from uuid import UUID
@@ -53,7 +54,35 @@ def save_project(project_id: UUID, payload: ProjectSave):
 @app.get("/geocode")
 def geocode(q: str):
     # Live AWS call. Replace with dependency-injected adapter in tests.
-    return AwsLocationGeocoder().geocode(q)
+    try:
+        return AwsLocationGeocoder().geocode(q)
+    except ClientError as exc:
+        raise HTTPException(502, f"Geocoding failed: {exc.response['Error']['Message']}")
+
+# Friendly category id -> free-text query sent to the geocoder's nearby-search. Free text
+# (not AWS's IncludeCategories taxonomy) so results come from the same proven search path
+# as /geocode, and a typo here just returns fewer/irrelevant results instead of silently
+# matching nothing.
+NEARBY_CATEGORY_QUERIES = {
+    "coffee": "coffee shop",
+    "restaurant": "restaurant",
+    "school": "school",
+    "park": "park",
+    "transit": "public transit station",
+    "hotel": "hotel",
+    "grocery": "grocery store",
+}
+
+@app.get("/places/nearby")
+def places_nearby(lng: float, lat: float, category: str):
+    query = NEARBY_CATEGORY_QUERIES.get(category)
+    if not query:
+        raise HTTPException(422, f"Unknown category '{category}'. Known: {', '.join(NEARBY_CATEGORY_QUERIES)}")
+    # Live AWS call. Replace with dependency-injected adapter in tests.
+    try:
+        return AwsLocationGeocoder().search_nearby(query, lng, lat)
+    except ClientError as exc:
+        raise HTTPException(502, f"Nearby search failed: {exc.response['Error']['Message']}")
 
 @app.post("/projects/{project_id}/narrative")
 def narrative(project_id: UUID):

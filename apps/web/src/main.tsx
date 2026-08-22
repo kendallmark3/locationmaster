@@ -34,6 +34,22 @@ type Point = {
   notes?:string;
 };
 
+const NEARBY_CATEGORIES: {id:string; label:string}[] = [
+  {id:"coffee", label:"Coffee"},
+  {id:"restaurant", label:"Restaurants"},
+  {id:"school", label:"Schools"},
+  {id:"park", label:"Parks"},
+  {id:"transit", label:"Transit"},
+  {id:"hotel", label:"Hotels"},
+  {id:"grocery", label:"Grocery"},
+];
+
+const SYMBOL_COLORS: Record<string,string> = {
+  subject:"#111111", coffee:"#6f4e37", restaurant:"#e2725b", golf:"#2f855a",
+  school:"#2b6cb0", park:"#2f855a", transit:"#6b46c1", hotel:"#b7791f",
+  grocery:"#2c7a7b", company:"#4a5568", employer:"#4a5568", custom:"#718096",
+};
+
 function App(){
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map|null>(null);
@@ -119,6 +135,8 @@ function App(){
     points.forEach(p=>{
       const el=document.createElement("div");
       el.className="story-marker";
+      el.style.background = SYMBOL_COLORS[p.symbol] ?? SYMBOL_COLORS.custom;
+      if(p.symbol==="subject"){ el.style.width="30px"; el.style.height="30px"; }
       el.title=p.label;
       const marker=new maplibregl.Marker({element:el})
         .setLngLat([p.longitude,p.latitude])
@@ -128,6 +146,36 @@ function App(){
     });
     return ()=>markers.forEach(m=>m.remove());
   },[points]);
+
+  const [nearbyLoading,setNearbyLoading] = useState<string|null>(null);
+  const subjectPoint = points.find(p=>p.category==="subject") ?? points[0];
+
+  async function addNearby(category: string){
+    if(!subjectPoint) return;
+    setNearbyLoading(category);
+    try{
+      const r = await fetch(`/api/places/nearby?lng=${subjectPoint.longitude}&lat=${subjectPoint.latitude}&category=${category}`);
+      if(!r.ok) return alert((await r.json()).detail ?? "Could not fetch nearby places.");
+      const results: {label:string; longitude:number; latitude:number; place_id:string}[] = await r.json();
+      if(!results.length) return alert(`No nearby ${category} found.`);
+      setPoints(ps=>{
+        const known = new Set(ps.map(p=>p.providerPlaceId).filter(Boolean));
+        const fresh = results
+          .filter(x=>!known.has(x.place_id))
+          .map(x=>({
+            id: crypto.randomUUID(), label: x.label, category, symbol: category,
+            longitude: x.longitude, latitude: x.latitude,
+            coordinateSource: "geocoder" as const, providerPlaceId: x.place_id,
+          }));
+        return [...ps, ...fresh];
+      });
+      const bounds = new maplibregl.LngLatBounds();
+      [...points, ...results].forEach(p=>bounds.extend([p.longitude,p.latitude]));
+      mapRef.current?.fitBounds(bounds, {padding:60, maxZoom:15, duration:800});
+    } finally {
+      setNearbyLoading(null);
+    }
+  }
 
   async function search(){
     const r=await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
@@ -154,6 +202,16 @@ function App(){
       <label>Find a location</label>
       <div className="row"><input value={query} onChange={e=>setQuery(e.target.value)} /><button onClick={search}>Find</button></div>
       <p className="hint">Or click anywhere on the map to add a custom point.</p>
+      <label>Add real nearby places</label>
+      <div className="chip-row">
+        {NEARBY_CATEGORIES.map(c=>
+          <button key={c.id} className="chip" disabled={!subjectPoint || nearbyLoading!=null}
+            onClick={()=>addNearby(c.id)}>
+            {nearbyLoading===c.id ? "…" : c.label}
+          </button>
+        )}
+      </div>
+      {!subjectPoint && <p className="hint">Find or place a subject point first.</p>}
       <h2>Story Points</h2>
       {points.map((p)=><div className="point" key={p.id}>
         <input value={p.label} onChange={e=>setPoints(ps=>ps.map(x=>x.id===p.id?{...x,label:e.target.value}:x))}/>
