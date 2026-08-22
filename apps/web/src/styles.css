@@ -7,4 +7,5 @@ textarea{width:100%;min-height:120px;margin:8px 0 18px;padding:10px}
 .row{display:flex;gap:8px}.row input{flex:1;padding:8px}
 .point{display:grid;grid-template-columns:1fr 100px auto;gap:6px;margin:8px 0}
 .point input,.point select{padding:6px}.primary{width:100%;padding:10px;margin-top:16px}
-.hint{font-size:12px;color:#666}.story-marker{width:22px;height:22px;border-radius:50%;background:#111;border:3px solid white;box-shadow:0 1px 4px #555}
+.hint{font-size:12px;color:#666}
+.narrative{margin-top:12px;padding:12px;background:#f6f6f4;border-radius:6px;font-size:14px;line-height:1.5}.story-marker{width:22px;height:22px;border-radius:50%;background:#111;border:3px solid white;box-shadow:0 1px 4px #555}

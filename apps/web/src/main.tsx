@@ -4,6 +4,28 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./styles.css";
 
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+
+// maplibre-gl has no built-in resolver for Mapbox's proprietary "mapbox://" style/source
+// scheme, so we use Mapbox's plain-HTTPS raster tile endpoint (Static Tiles API) instead —
+// it's a normal XYZ raster source, no extra library or URL-rewriting needed.
+const MAP_STYLE: maplibregl.StyleSpecification | string = MAPBOX_TOKEN
+  ? {
+      version: 8,
+      sources: {
+        "mapbox-raster": {
+          type: "raster",
+          tiles: [`https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}@2x?access_token=${MAPBOX_TOKEN}`],
+          tileSize: 256,
+          attribution: "© Mapbox © OpenStreetMap"
+        }
+      },
+      layers: [{id: "mapbox-raster-layer", type: "raster", source: "mapbox-raster"}]
+    }
+  // Dev-only public fallback (full street-level detail, no key required) when no Mapbox
+  // token is configured. Replace with Amazon Location style URL in deployed config.
+  : "https://tiles.openfreemap.org/styles/positron";
+
 type Point = {
   id:string; label:string; category:string; symbol:string;
   longitude:number; latitude:number;
@@ -20,13 +42,14 @@ function App(){
   const [points,setPoints] = useState<Point[]>([]);
   const [projectId,setProjectId] = useState<string|null>(null);
   const [savedVersion,setSavedVersion] = useState<number|null>(null);
+  const [narrative,setNarrative] = useState<string|null>(null);
+  const [narrativeLoading,setNarrativeLoading] = useState(false);
 
   useEffect(()=>{
     if(!mapContainer.current || mapRef.current) return;
     mapRef.current = new maplibregl.Map({
       container: mapContainer.current,
-      // Dev-only public style. Replace with Amazon Location style URL in deployed config.
-      style: "https://demotiles.maplibre.org/style.json",
+      style: MAP_STYLE,
       center: [-96.8,32.8],
       zoom: 3
     });
@@ -73,6 +96,20 @@ function App(){
     const url = new URL(window.location.href);
     url.searchParams.set("project", id!);
     window.history.replaceState({},"",url);
+  }
+
+  async function generateNarrative(){
+    if(!projectId) return;
+    setNarrativeLoading(true);
+    setNarrative(null);
+    try{
+      const r = await fetch(`/api/projects/${projectId}/narrative`,{method:"POST"});
+      const body = await r.json();
+      if(!r.ok) return alert(body.detail ?? "Could not generate a narrative.");
+      setNarrative(body.narrative);
+    } finally {
+      setNarrativeLoading(false);
+    }
   }
 
   useEffect(()=>{
@@ -126,6 +163,11 @@ function App(){
       </div>)}
       <button className="primary" disabled={!name || !intent || !points.length} onClick={save}>Save Story</button>
       {savedVersion!=null && <p className="hint">Saved (version {savedVersion}).</p>}
+      <button className="primary" disabled={!projectId || narrativeLoading} onClick={generateNarrative}>
+        {narrativeLoading ? "Writing..." : "Give me a reason to move here"}
+      </button>
+      {!projectId && <p className="hint">Save the story first to generate a reason.</p>}
+      {narrative && <p className="narrative">{narrative}</p>}
     </aside>
     <main ref={mapContainer}/>
   </div>

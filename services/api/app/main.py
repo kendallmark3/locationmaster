@@ -1,8 +1,17 @@
+from pathlib import Path
+
+import anthropic
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from uuid import UUID
 from .models import Project, ProjectCreate, ProjectSave, StoryPoint
 from .geocoding import AwsLocationGeocoder
+from .narrative import generate_relocation_narrative
 from hooks.pre_export import validate_exportable_project
+
+# Explicit path: uvicorn is run from the repo root per README, so the default
+# load_dotenv() cwd-search would miss services/api/.env.
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 app = FastAPI(title="Location Story Engine API")
 projects: dict[UUID, Project] = {}
@@ -45,6 +54,29 @@ def save_project(project_id: UUID, payload: ProjectSave):
 def geocode(q: str):
     # Live AWS call. Replace with dependency-injected adapter in tests.
     return AwsLocationGeocoder().geocode(q)
+
+@app.post("/projects/{project_id}/narrative")
+def narrative(project_id: UUID):
+    project = get_project(project_id)
+    visible_points = [p for p in project.points if p.visible]
+    if not visible_points:
+        raise HTTPException(422, "Add at least one visible story point first.")
+    try:
+        text = generate_relocation_narrative(
+            project.rawIntent,
+            [p.model_dump(mode="json") for p in visible_points],
+        )
+    except (anthropic.AuthenticationError, TypeError):
+        # TypeError: the SDK raises this client-side (not AuthenticationError) when no
+        # credential at all is resolvable, as opposed to an invalid one being rejected.
+        raise HTTPException(502, "Narrative generation is not configured (missing or invalid API credentials).")
+    except anthropic.RateLimitError:
+        raise HTTPException(503, "Narrative generation is rate-limited; try again shortly.")
+    except anthropic.APIStatusError as exc:
+        raise HTTPException(502, f"Narrative generation failed: {exc.message}")
+    except anthropic.APIConnectionError:
+        raise HTTPException(503, "Could not reach the narrative generation service.")
+    return {"narrative": text}
 
 @app.post("/projects/{project_id}/export")
 def export(project_id: UUID):
