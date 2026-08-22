@@ -1,0 +1,7 @@
+[tool.pytest.ini_options]
+# Ensures `hooks/` (a sibling of services/api, at repo root) is importable
+# from tests and from services/api/app/main.py without manually setting
+# PYTHONPATH. Run pytest from anywhere under the repo root:
+#   pytest services/api/tests/
+pythonpath = ["."]
+testpaths = ["services/api/tests"]

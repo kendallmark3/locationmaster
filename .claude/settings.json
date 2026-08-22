@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python hooks/validate_contracts.py && python hooks/forbid_secrets.py"
+          }
+        ]
+      }
+    ]
+  }
+}

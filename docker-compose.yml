@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: location_story
+      POSTGRES_USER: location_story
+      POSTGRES_PASSWORD: location_story
+    ports:
+      - "5432:5432"
+    volumes:
+      - location_story_pg:/var/lib/postgresql/data
+
+volumes:
+  location_story_pg:

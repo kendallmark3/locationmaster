@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ExportRequest",
+  "type": "object",
+  "required": [
+    "projectId",
+    "projectVersion",
+    "format"
+  ],
+  "properties": {
+    "projectId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "projectVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "format": {
+      "enum": [
+        "png",
+        "jpeg"
+      ]
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 640,
+      "maximum": 4096
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 480,
+      "maximum": 4096
+    }
+  },
+  "additionalProperties": false
+}

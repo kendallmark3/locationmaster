@@ -1,0 +1,10 @@
+html,body,#root{height:100%;margin:0;font-family:Inter,system-ui,sans-serif}
+.shell{display:grid;grid-template-columns:360px 1fr;height:100%}
+aside{padding:20px;overflow:auto;border-right:1px solid #ddd;background:#fff}
+main{height:100%}
+textarea,input,select,button{box-sizing:border-box;font:inherit}
+textarea{width:100%;min-height:120px;margin:8px 0 18px;padding:10px}
+.row{display:flex;gap:8px}.row input{flex:1;padding:8px}
+.point{display:grid;grid-template-columns:1fr 100px auto;gap:6px;margin:8px 0}
+.point input,.point select{padding:6px}.primary{width:100%;padding:10px;margin-top:16px}
+.hint{font-size:12px;color:#666}.story-marker{width:22px;height:22px;border-radius:50%;background:#111;border:3px solid white;box-shadow:0 1px 4px #555}
