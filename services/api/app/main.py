@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from uuid import UUID
-from .models import Project, ProjectCreate, StoryPoint
+from .models import Project, ProjectCreate, ProjectSave, StoryPoint
 from .geocoding import AwsLocationGeocoder
 from hooks.pre_export import validate_exportable_project
 
@@ -27,6 +27,17 @@ def get_project(project_id: UUID):
 def add_point(project_id: UUID, point: StoryPoint):
     project = get_project(project_id)
     project.points.append(point)
+    project.version += 1
+    return project
+
+@app.put("/projects/{project_id}", response_model=Project)
+def save_project(project_id: UUID, payload: ProjectSave):
+    project = get_project(project_id)
+    project.name = payload.name
+    project.rawIntent = payload.rawIntent
+    project.points = payload.points
+    project.center = payload.center
+    project.zoom = payload.zoom
     project.version += 1
     return project
 

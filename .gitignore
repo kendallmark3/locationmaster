@@ -6,6 +6,7 @@ dist/
 build/
 .venv/
 __pycache__/
+*.tsbuildinfo
 .pytest_cache/
 *.pyc
 .DS_Store

@@ -19,6 +19,13 @@ class ProjectCreate(BaseModel):
     name: str
     rawIntent: str
 
+class ProjectSave(BaseModel):
+    name: str
+    rawIntent: str
+    points: list[StoryPoint] = []
+    center: tuple[float, float] | None = None
+    zoom: float = 10
+
 class Project(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     name: str

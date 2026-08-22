@@ -4,14 +4,22 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./styles.css";
 
-type Point = {id:string; label:string; category:string; symbol:string; longitude:number; latitude:number};
+type Point = {
+  id:string; label:string; category:string; symbol:string;
+  longitude:number; latitude:number;
+  coordinateSource:"geocoder"|"map_click"|"import";
+  providerPlaceId?:string|null;
+};
 
 function App(){
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map|null>(null);
+  const [name,setName] = useState("");
   const [intent,setIntent] = useState("");
   const [query,setQuery] = useState("");
   const [points,setPoints] = useState<Point[]>([]);
+  const [projectId,setProjectId] = useState<string|null>(null);
+  const [savedVersion,setSavedVersion] = useState<number|null>(null);
 
   useEffect(()=>{
     if(!mapContainer.current || mapRef.current) return;
@@ -27,11 +35,45 @@ function App(){
       if(!label) return;
       setPoints(p=>[...p,{
         id: crypto.randomUUID(), label, category:"custom", symbol:"custom",
-        longitude:e.lngLat.lng, latitude:e.lngLat.lat
+        longitude:e.lngLat.lng, latitude:e.lngLat.lat, coordinateSource:"map_click"
       }]);
     });
     return ()=>mapRef.current?.remove();
   },[]);
+
+  useEffect(()=>{
+    const id = new URLSearchParams(window.location.search).get("project");
+    if(!id) return;
+    fetch(`/api/projects/${id}`).then(r=>r.ok ? r.json() : Promise.reject())
+      .then(p=>{
+        setProjectId(p.id);
+        setName(p.name);
+        setIntent(p.rawIntent);
+        setPoints(p.points);
+        setSavedVersion(p.version);
+        if(p.center) mapRef.current?.jumpTo({center:p.center, zoom:p.zoom});
+      })
+      .catch(()=>alert("Could not load project"));
+  },[]);
+
+  async function save(){
+    const center = mapRef.current ? [mapRef.current.getCenter().lng, mapRef.current.getCenter().lat] : null;
+    const zoom = mapRef.current?.getZoom() ?? 10;
+    let id = projectId;
+    if(!id){
+      const r = await fetch("/api/projects",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,rawIntent:intent})});
+      if(!r.ok) return alert("Could not create project");
+      id = (await r.json()).id;
+      setProjectId(id);
+    }
+    const r2 = await fetch(`/api/projects/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,rawIntent:intent,points,center,zoom})});
+    if(!r2.ok) return alert("Save failed");
+    const saved = await r2.json();
+    setSavedVersion(saved.version);
+    const url = new URL(window.location.href);
+    url.searchParams.set("project", id!);
+    window.history.replaceState({},"",url);
+  }
 
   useEffect(()=>{
     if(!mapRef.current) return;
@@ -57,7 +99,8 @@ function App(){
     const x=results[0];
     setPoints(p=>[...p,{
       id:crypto.randomUUID(),label:x.label,category:"subject",symbol:"subject",
-      longitude:x.longitude,latitude:x.latitude
+      longitude:x.longitude,latitude:x.latitude,
+      coordinateSource:"geocoder",providerPlaceId:x.place_id ?? null
     }]);
     mapRef.current?.flyTo({center:[x.longitude,x.latitude],zoom:14});
   }
@@ -65,6 +108,8 @@ function App(){
   return <div className="shell">
     <aside>
       <h1>Location Story</h1>
+      <label>Project name</label>
+      <input value={name} onChange={e=>setName(e.target.value)} placeholder="Q3 site selection story" />
       <label>What story are you trying to tell?</label>
       <textarea value={intent} onChange={e=>setIntent(e.target.value)}
         placeholder="Build the strongest location story for this property..." />
@@ -79,7 +124,8 @@ function App(){
         </select>
         <button onClick={()=>setPoints(ps=>ps.filter(x=>x.id!==p.id))}>Remove</button>
       </div>)}
-      <button className="primary" disabled={!intent || !points.length}>Save Story</button>
+      <button className="primary" disabled={!name || !intent || !points.length} onClick={save}>Save Story</button>
+      {savedVersion!=null && <p className="hint">Saved (version {savedVersion}).</p>}
     </aside>
     <main ref={mapContainer}/>
   </div>
