@@ -27,6 +27,10 @@ class AwsLocationGeocoder:
         )
         return self._parse_results(response, fallback_label=query)
 
+    def reverse_geocode(self, longitude: float, latitude: float) -> list[GeocodeResult]:
+        response = self.client.reverse_geocode(QueryPosition=[longitude, latitude], MaxResults=1, IntendedUse="Storage")
+        return self._parse_results(response, fallback_label=f"{latitude}, {longitude}")
+
     def _parse_results(self, response: dict, fallback_label: str) -> list[GeocodeResult]:
         results = []
         for item in response.get("ResultItems", []):

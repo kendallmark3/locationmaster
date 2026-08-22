@@ -59,6 +59,17 @@ def geocode(q: str):
     except ClientError as exc:
         raise HTTPException(502, f"Geocoding failed: {exc.response['Error']['Message']}")
 
+@app.get("/reverse-geocode")
+def reverse_geocode(lng: float, lat: float):
+    # Live AWS call. Replace with dependency-injected adapter in tests.
+    try:
+        results = AwsLocationGeocoder().reverse_geocode(lng, lat)
+    except ClientError as exc:
+        raise HTTPException(502, f"Reverse geocoding failed: {exc.response['Error']['Message']}")
+    if not results:
+        raise HTTPException(404, "No address found for that location.")
+    return results[0]
+
 # Friendly category id -> free-text query sent to the geocoder's nearby-search. Free text
 # (not AWS's IncludeCategories taxonomy) so results come from the same proven search path
 # as /geocode, and a typo here just returns fewer/irrelevant results instead of silently

@@ -129,6 +129,9 @@ function App(){
     }
   }
 
+  const pointsRef = useRef<Point[]>([]);
+  useEffect(()=>{ pointsRef.current = points; },[points]);
+
   useEffect(()=>{
     if(!mapRef.current) return;
     const markers: maplibregl.Marker[] = [];
@@ -150,31 +153,79 @@ function App(){
   const [nearbyLoading,setNearbyLoading] = useState<string|null>(null);
   const subjectPoint = points.find(p=>p.category==="subject") ?? points[0];
 
+  // Fetches nearby places and appends them to state; returns what it added so callers
+  // chaining several of these in a row (useMyLocation) can accumulate locally instead of
+  // reading back out of `points`/`pointsRef`, which lag behind a tight loop of awaits.
+  async function fetchNearby(category: string, pos: {lng:number; lat:number}, existing: Point[]): Promise<Point[]> {
+    const r = await fetch(`/api/places/nearby?lng=${pos.lng}&lat=${pos.lat}&category=${category}`);
+    if(!r.ok){ alert((await r.json()).detail ?? "Could not fetch nearby places."); return []; }
+    const results: {label:string; longitude:number; latitude:number; place_id:string}[] = await r.json();
+    const known = new Set(existing.map(p=>p.providerPlaceId).filter(Boolean));
+    return results
+      .filter(x=>!known.has(x.place_id))
+      .map(x=>({
+        id: crypto.randomUUID(), label: x.label, category, symbol: category,
+        longitude: x.longitude, latitude: x.latitude,
+        coordinateSource: "geocoder" as const, providerPlaceId: x.place_id,
+      }));
+  }
+
+  function fitToPoints(pts: Point[]){
+    if(!pts.length) return;
+    const bounds = new maplibregl.LngLatBounds();
+    pts.forEach(p=>bounds.extend([p.longitude,p.latitude]));
+    mapRef.current?.fitBounds(bounds, {padding:60, maxZoom:15, duration:800});
+  }
+
   async function addNearby(category: string){
     if(!subjectPoint) return;
     setNearbyLoading(category);
     try{
-      const r = await fetch(`/api/places/nearby?lng=${subjectPoint.longitude}&lat=${subjectPoint.latitude}&category=${category}`);
-      if(!r.ok) return alert((await r.json()).detail ?? "Could not fetch nearby places.");
-      const results: {label:string; longitude:number; latitude:number; place_id:string}[] = await r.json();
-      if(!results.length) return alert(`No nearby ${category} found.`);
-      setPoints(ps=>{
-        const known = new Set(ps.map(p=>p.providerPlaceId).filter(Boolean));
-        const fresh = results
-          .filter(x=>!known.has(x.place_id))
-          .map(x=>({
-            id: crypto.randomUUID(), label: x.label, category, symbol: category,
-            longitude: x.longitude, latitude: x.latitude,
-            coordinateSource: "geocoder" as const, providerPlaceId: x.place_id,
-          }));
-        return [...ps, ...fresh];
-      });
-      const bounds = new maplibregl.LngLatBounds();
-      [...points, ...results].forEach(p=>bounds.extend([p.longitude,p.latitude]));
-      mapRef.current?.fitBounds(bounds, {padding:60, maxZoom:15, duration:800});
+      const fresh = await fetchNearby(category, {lng:subjectPoint.longitude, lat:subjectPoint.latitude}, pointsRef.current);
+      if(!fresh.length) return alert(`No new nearby ${category} found.`);
+      setPoints(ps=>[...ps, ...fresh]);
+      fitToPoints([...pointsRef.current, ...fresh]);
     } finally {
       setNearbyLoading(null);
     }
+  }
+
+  const [locating,setLocating] = useState(false);
+
+  async function useMyLocation(){
+    if(!navigator.geolocation) return alert("Geolocation is not available in this browser.");
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(async (pos)=>{
+      try{
+        const {longitude:lng, latitude:lat} = pos.coords;
+        const r = await fetch(`/api/reverse-geocode?lng=${lng}&lat=${lat}`);
+        if(!r.ok){ alert((await r.json()).detail ?? "Could not determine your address."); return; }
+        const place = await r.json();
+        setName(place.label);
+        setIntent(`Show why ${place.label} is a great place to call home.`);
+        const subject: Point = {
+          id: crypto.randomUUID(), label: place.label, category:"subject", symbol:"subject",
+          longitude: place.longitude, latitude: place.latitude,
+          coordinateSource:"geocoder", providerPlaceId: place.place_id ?? null,
+        };
+        mapRef.current?.flyTo({center:[place.longitude, place.latitude], zoom:14});
+
+        let accumulated = [subject];
+        for(const category of ["coffee","restaurant","school","park"]){
+          setNearbyLoading(category);
+          const fresh = await fetchNearby(category, {lng:place.longitude, lat:place.latitude}, accumulated);
+          accumulated = [...accumulated, ...fresh];
+        }
+        setNearbyLoading(null);
+        setPoints(accumulated);
+        fitToPoints(accumulated);
+      } finally {
+        setLocating(false);
+      }
+    }, (err)=>{
+      setLocating(false);
+      alert(`Could not get your location: ${err.message}`);
+    });
   }
 
   async function search(){
@@ -194,6 +245,10 @@ function App(){
   return <div className="shell">
     <aside>
       <h1>Location Story</h1>
+      <button className="primary" onClick={useMyLocation} disabled={locating || nearbyLoading!=null}>
+        {locating ? (nearbyLoading ? `Finding ${nearbyLoading}…` : "Locating…") : "Use my location — fill in everything"}
+      </button>
+      <p className="hint">Fills project name, intent, subject point, and nearby coffee/restaurants/schools/parks from your current location.</p>
       <label>Project name</label>
       <input value={name} onChange={e=>setName(e.target.value)} placeholder="Q3 site selection story" />
       <label>What story are you trying to tell?</label>
