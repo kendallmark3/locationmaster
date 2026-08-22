@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException
 from uuid import UUID
 from .models import Project, ProjectCreate, ProjectSave, StoryPoint
 from .geocoding import AwsLocationGeocoder
-from .narrative import generate_relocation_narrative
+from .narrative import generate_relocation_narrative, has_enough_detail
 from hooks.pre_export import validate_exportable_project
 
 # Explicit path: uvicorn is run from the repo root per README, so the default
@@ -61,6 +61,12 @@ def narrative(project_id: UUID):
     visible_points = [p for p in project.points if p.visible]
     if not visible_points:
         raise HTTPException(422, "Add at least one visible story point first.")
+    if not has_enough_detail(project.rawIntent, [p.model_dump(mode="json") for p in visible_points]):
+        raise HTTPException(
+            422,
+            "Not enough detail to write a grounded narrative yet — add notes to a story "
+            "point, a second point, or expand the project intent.",
+        )
     try:
         text = generate_relocation_narrative(
             project.rawIntent,

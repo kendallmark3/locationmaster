@@ -31,6 +31,7 @@ type Point = {
   longitude:number; latitude:number;
   coordinateSource:"geocoder"|"map_click"|"import";
   providerPlaceId?:string|null;
+  notes?:string;
 };
 
 function App(){
@@ -160,6 +161,9 @@ function App(){
           {["subject","company","restaurant","coffee","golf","hotel","transit","school","employer","custom"].map(s=><option key={s}>{s}</option>)}
         </select>
         <button onClick={()=>setPoints(ps=>ps.filter(x=>x.id!==p.id))}>Remove</button>
+        <textarea className="point-notes" value={p.notes ?? ""}
+          onChange={e=>setPoints(ps=>ps.map(x=>x.id===p.id?{...x,notes:e.target.value}:x))}
+          placeholder="Why does this point matter to the story? (used to write the relocation narrative)" />
       </div>)}
       <button className="primary" disabled={!name || !intent || !points.length} onClick={save}>Save Story</button>
       {savedVersion!=null && <p className="hint">Saved (version {savedVersion}).</p>}
