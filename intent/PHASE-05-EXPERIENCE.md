@@ -19,8 +19,22 @@ Location Story Engine — Version 0.5 Experience Upgrade
   falling back to a fixed default set (a bug this fix also caught). Category registry grew
   from 7 to 11 ids to actually cover common asks: added `healthcare`, `entertainment`,
   `shopping`, `community`.
-- ❌ **Item 7–11 (Category-aware icon markers + legend)** — not started. Markers are still
-  flat colored dots (`SYMBOL_COLORS` in `main.tsx`, now 11 colors), no icon library, no legend.
+- 🟡 **Item 7–11 (Category-aware markers + legend)** — legend done, icons not. Markers moved
+  from individual DOM `Marker`s to a native MapLibre GeoJSON `circle` + `symbol` layer pair
+  (`story-points-circle`/`story-points-label`), which gets real label-collision handling
+  (`text-allow-overlap: false`, `text-optional: true`) for free — with 30-50 points a dot
+  without room for its label just stays a dot instead of every label smearing into an
+  unreadable jumble, which is what item 7's "readable at ordinary zoom" actually required.
+  A compact legend (`.legend` in `main.tsx`) lists the distinct categories currently on the
+  map with their color swatch, top-right of the map. Still flat colored dots, though — no
+  icon library, no icon-per-category (§8–9), so "distinguishable by more than color" (§9)
+  isn't met yet.
+  `search_nearby`'s default per-category result count also dropped from 5 to 3, and results
+  are now hard-filtered to within 25km and sorted closest-first (`services/api/app/geocoding.py`)
+  — a generic query like the old "public transit station" could rank a different country's
+  train station above a real local one since AWS's BiasPosition only nudges ranking, it
+  doesn't restrict by distance; this was silently blowing the map's fit-bounds out to a
+  world view.
 - ❌ **Item 18–23 (Layout/navigation polish)** — not started. Sidebar is still one long
   scrolling form; no header/nav, no centered pre-map setup card.
 

@@ -1,7 +1,8 @@
 html,body,#root{height:100%;margin:0;font-family:Inter,system-ui,sans-serif}
 .shell{display:grid;grid-template-columns:360px 1fr;height:100%}
 aside{padding:20px;overflow:auto;border-right:1px solid #ddd;background:#fff}
-main{height:100%}
+main{height:100%;position:relative}
+.map-canvas{position:absolute;inset:0}
 textarea,input,select,button{box-sizing:border-box;font:inherit}
 textarea{width:100%;min-height:120px;margin:8px 0 18px;padding:10px}
 .row{display:flex;gap:8px}.row input{flex:1;padding:8px}
@@ -13,7 +14,10 @@ textarea{width:100%;min-height:120px;margin:8px 0 18px;padding:10px}
 .chip{padding:6px 10px;border-radius:999px;border:1px solid #ccc;background:#f6f6f4;font-size:12px}
 .chip:disabled{opacity:.5}
 .narrative{margin-top:12px;padding:12px;background:#f6f6f4;border-radius:6px;font-size:14px;line-height:1.5}
-.story-marker{width:22px;height:22px;border-radius:50%;background:#111;border:3px solid white;box-shadow:0 1px 4px #555}
+.legend{position:absolute;top:12px;right:12px;background:rgba(255,255,255,.92);border:1px solid #ddd;border-radius:8px;
+  padding:10px 12px;font-size:12px;max-height:calc(100% - 24px);overflow-y:auto;box-shadow:0 1px 6px rgba(0,0,0,.15)}
+.legend-row{display:flex;align-items:center;gap:6px;padding:2px 0;white-space:nowrap}
+.legend-swatch{width:10px;height:10px;border-radius:50%;border:1.5px solid #fff;box-shadow:0 0 0 1px #ccc;flex:none}
 .cap-result{margin-top:10px;font-size:13px}
 .cap-step{padding:2px 0}.cap-step.passed{color:#276749}.cap-step.failed{color:#c53030}
 .cap-joke{margin-top:10px;padding:10px;background:#f6f6f4;border-radius:6px;line-height:1.6}

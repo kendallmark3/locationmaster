@@ -55,6 +55,20 @@ const SYMBOL_COLORS: Record<string,string> = {
   healthcare:"#dc2626", entertainment:"#db2777", shopping:"#f59e0b", community:"#0891b2",
 };
 
+const SYMBOL_LABELS: Record<string,string> = {
+  subject:"Home", coffee:"Coffee", restaurant:"Restaurants", golf:"Golf",
+  school:"Schools", park:"Parks", transit:"Transit", hotel:"Hotels",
+  grocery:"Grocery", company:"Company", employer:"Employer", custom:"Other",
+  healthcare:"Healthcare", entertainment:"Entertainment", shopping:"Shopping", community:"Community",
+};
+
+// MapLibre "match" expression built from SYMBOL_COLORS so the two never drift apart.
+const CIRCLE_COLOR_EXPR = [
+  "match", ["get","symbol"],
+  ...Object.entries(SYMBOL_COLORS).flatMap(([symbol,color])=>[symbol,color]),
+  SYMBOL_COLORS.custom,
+] as unknown as maplibregl.ExpressionSpecification;
+
 function App(){
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map|null>(null);
@@ -99,6 +113,13 @@ function App(){
       canvasContextAttributes: {preserveDrawingBuffer: true},
     });
     mapRef.current.on("click",(e)=>{
+      // Don't prompt for a new point when the click landed on an existing one — the
+      // story-points-circle layer's own click handler (added once points render) shows
+      // that point's popup instead.
+      const hit = mapRef.current!.getLayer("story-points-circle")
+        ? mapRef.current!.queryRenderedFeatures(e.point, {layers:["story-points-circle"]})
+        : [];
+      if(hit.length) return;
       const label = window.prompt("Label this story point:");
       if(!label) return;
       setPoints(p=>[...p,{
@@ -233,22 +254,69 @@ function App(){
   const pointsRef = useRef<Point[]>([]);
   useEffect(()=>{ pointsRef.current = points; },[points]);
 
+  // Rendered as a native MapLibre symbol layer (not individual DOM Markers) so its
+  // built-in label-collision handling applies: a label only draws when there's room for
+  // it, and the dot stays visible either way — with 30-50 points that's the difference
+  // between a readable map and a smear of overlapping text.
   useEffect(()=>{
-    if(!mapRef.current) return;
-    const markers: maplibregl.Marker[] = [];
-    points.forEach(p=>{
-      const el=document.createElement("div");
-      el.className="story-marker";
-      el.style.background = SYMBOL_COLORS[p.symbol] ?? SYMBOL_COLORS.custom;
-      if(p.symbol==="subject"){ el.style.width="30px"; el.style.height="30px"; }
-      el.title=p.label;
-      const marker=new maplibregl.Marker({element:el})
-        .setLngLat([p.longitude,p.latitude])
-        .setPopup(new maplibregl.Popup().setText(p.label))
-        .addTo(mapRef.current!);
-      markers.push(marker);
-    });
-    return ()=>markers.forEach(m=>m.remove());
+    const map = mapRef.current;
+    if(!map) return;
+    const geojson = {
+      type: "FeatureCollection" as const,
+      features: points.map(p=>({
+        type: "Feature" as const,
+        geometry: {type: "Point" as const, coordinates: [p.longitude, p.latitude]},
+        properties: {label: p.label, symbol: p.symbol},
+      })),
+    };
+
+    function upsert(){
+      const source = map!.getSource("story-points") as maplibregl.GeoJSONSource | undefined;
+      if(source){ source.setData(geojson as GeoJSON.FeatureCollection); return; }
+
+      map!.addSource("story-points", {type:"geojson", data: geojson as GeoJSON.FeatureCollection});
+      map!.addLayer({
+        id: "story-points-circle",
+        type: "circle",
+        source: "story-points",
+        paint: {
+          "circle-radius": ["match", ["get","symbol"], "subject", 10, 7],
+          "circle-color": CIRCLE_COLOR_EXPR,
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 2,
+        },
+      });
+      map!.addLayer({
+        id: "story-points-label",
+        type: "symbol",
+        source: "story-points",
+        layout: {
+          "text-field": ["get","label"],
+          "text-size": 11,
+          "text-offset": [0, 1.3],
+          "text-anchor": "top",
+          "text-allow-overlap": false,
+          "text-optional": true,
+        },
+        paint: {
+          "text-color": "#111827",
+          "text-halo-color": "#ffffff",
+          "text-halo-width": 1.4,
+        },
+      });
+      map!.on("click","story-points-circle",(e)=>{
+        const f = e.features?.[0];
+        if(!f || f.geometry.type!=="Point") return;
+        new maplibregl.Popup()
+          .setLngLat(f.geometry.coordinates as [number,number])
+          .setText(String(f.properties?.label ?? ""))
+          .addTo(map!);
+      });
+      map!.on("mouseenter","story-points-circle",()=>{ map!.getCanvas().style.cursor="pointer"; });
+      map!.on("mouseleave","story-points-circle",()=>{ map!.getCanvas().style.cursor=""; });
+    }
+
+    if(map.isStyleLoaded()) upsert(); else map.once("load", upsert);
   },[points]);
 
   const [nearbyLoading,setNearbyLoading] = useState<string|null>(null);
@@ -459,7 +527,20 @@ function App(){
         </div>}
       </div>}
     </aside>
-    <main ref={mapContainer}/>
+    <main>
+      {/* MapLibre owns this element's children imperatively — keep it free of any
+          React-rendered siblings inside it, or reconciliation will fight MapLibre's
+          own DOM writes. The legend below is a separate sibling, not a child. */}
+      <div ref={mapContainer} className="map-canvas"/>
+      {points.length > 0 && <div className="legend">
+        {[...new Set(points.map(p=>p.symbol))].sort().map(sym=>
+          <div key={sym} className="legend-row">
+            <span className="legend-swatch" style={{background: SYMBOL_COLORS[sym] ?? SYMBOL_COLORS.custom}} />
+            {SYMBOL_LABELS[sym] ?? sym}
+          </div>
+        )}
+      </div>}
+    </main>
   </div>
 }
 

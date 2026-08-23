@@ -18,7 +18,7 @@ class AwsLocationGeocoder:
         response = self.client.geocode(QueryText=query, MaxResults=5, IntendedUse="Storage")
         return self._parse_results(response, fallback_label=query)
 
-    def search_nearby(self, query: str, longitude: float, latitude: float, max_results: int = 5, max_distance_km: float = 25) -> list[GeocodeResult]:
+    def search_nearby(self, query: str, longitude: float, latitude: float, max_results: int = 3, max_distance_km: float = 25) -> list[GeocodeResult]:
         # BiasPosition only nudges ranking — it does not restrict results to the area, and
         # a generic query (e.g. "public transit station") can return the AWS Location
         # index's globally-best-ranked match (a different country's main train station)
