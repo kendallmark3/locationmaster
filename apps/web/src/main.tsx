@@ -207,21 +207,39 @@ function App(){
       ctx.fillText(intent || "", 16*dpr, 48*dpr);
       ctx.drawImage(mapCanvas, 0, headerH);
 
-      points.forEach(p=>{
-        const proj = map.project([p.longitude, p.latitude]);
-        const px = proj.x*dpr, py = proj.y*dpr + headerH;
-        const radius = (p.symbol==="subject" ? 8 : 6) * dpr;
-        ctx.beginPath();
-        ctx.arc(px, py, radius, 0, Math.PI*2);
-        ctx.fillStyle = SYMBOL_COLORS[p.symbol] ?? SYMBOL_COLORS.custom;
-        ctx.fill();
-        ctx.lineWidth = 2*dpr;
-        ctx.strokeStyle = "#ffffff";
-        ctx.stroke();
-        ctx.fillStyle = "#111827";
+      const mapRight = out.width, mapTop = headerH;
+
+      // Points themselves (dots + collision-avoided labels) are NOT redrawn here — they're
+      // a native MapLibre circle+symbol layer now (see the points-rendering effect above),
+      // so they're already baked into mapCanvas's pixels by the drawImage call above.
+      // Redrawing them here used to be necessary when points were separate DOM Markers
+      // (not part of the canvas at all); doing it now just double-labels every point. The
+      // legend, on the other hand, is a real React DOM overlay outside the map canvas, so
+      // it genuinely needs to be drawn onto the export by hand.
+      const legendSymbols = [...new Set(points.map(p=>p.symbol))].sort();
+      const legendPad = 10*dpr, legendRowH = 16*dpr, legendSwatch = 8*dpr;
+      ctx.font = `${Math.round(12*dpr)}px sans-serif`;
+      const legendW = legendPad*2 + legendSwatch + 6*dpr + Math.max(...legendSymbols.map(s=>ctx.measureText(SYMBOL_LABELS[s] ?? s).width), 0);
+      const legendH = legendPad*2 + legendSymbols.length*legendRowH;
+      const legendX = mapRight - legendW - 12*dpr, legendY = mapTop + 12*dpr;
+
+      if(legendSymbols.length){
+        ctx.fillStyle = "rgba(255,255,255,0.92)";
+        ctx.fillRect(legendX, legendY, legendW, legendH);
+        ctx.strokeStyle = "#ddd";
+        ctx.lineWidth = 1*dpr;
+        ctx.strokeRect(legendX, legendY, legendW, legendH);
         ctx.font = `${Math.round(12*dpr)}px sans-serif`;
-        ctx.fillText(p.label, px + radius + 4, py + 4*dpr);
-      });
+        legendSymbols.forEach((sym,i)=>{
+          const rowY = legendY + legendPad + i*legendRowH + legendRowH/2;
+          ctx.beginPath();
+          ctx.arc(legendX+legendPad+legendSwatch/2, rowY, legendSwatch/2, 0, Math.PI*2);
+          ctx.fillStyle = SYMBOL_COLORS[sym] ?? SYMBOL_COLORS.custom;
+          ctx.fill();
+          ctx.fillStyle = "#111827";
+          ctx.fillText(SYMBOL_LABELS[sym] ?? sym, legendX+legendPad+legendSwatch+6*dpr, rowY+4*dpr);
+        });
+      }
 
       out.toBlob(blob=>{
         if(!blob) return alert("Could not render the export image.");
