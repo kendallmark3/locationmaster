@@ -134,6 +134,37 @@ function App(){
     window.history.replaceState({},"",url);
   }
 
+  const [exporting,setExporting] = useState(false);
+
+  async function exportImage(){
+    if(!projectId || savedVersion==null) return;
+    setExporting(true);
+    try{
+      const r = await fetch(`/api/projects/${projectId}/export`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({projectId, projectVersion:savedVersion, format:"png"})
+      });
+      if(!r.ok){
+        const body = await r.json().catch(()=>({}));
+        const detail = body.detail;
+        const message = detail && typeof detail==="object" && detail.errors
+          ? detail.errors.join("\n")
+          : (typeof detail==="string" ? detail : "Export failed.");
+        return alert(message);
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${name || "location-story"}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function generateNarrative(){
     if(!projectId) return;
     setNarrativeLoading(true);
@@ -299,6 +330,10 @@ function App(){
       </div>)}
       <button className="primary" disabled={!name || !intent || !points.length} onClick={save}>Save Story</button>
       {savedVersion!=null && <p className="hint">Saved (version {savedVersion}).</p>}
+      <button className="primary" disabled={!projectId || savedVersion==null || exporting} onClick={exportImage}>
+        {exporting ? "Exporting…" : "Export Image"}
+      </button>
+      {!projectId && <p className="hint">Save the story first to export an image.</p>}
       <button className="primary" disabled={!projectId || narrativeLoading} onClick={generateNarrative}>
         {narrativeLoading ? "Writing..." : "Give me a reason to move here"}
       </button>
