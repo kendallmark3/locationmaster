@@ -13,6 +13,51 @@ A focused enterprise-ready starter for building location stories from intent.
 7. User exports a first-pass image artifact.
 8. Project, intent, points, and output remain retrievable.
 
+## Current implemented workflow (UI + API)
+
+- **Use my location — fill in everything**: auto-fills project name/intent, adds a subject point, and pulls nearby coffee/restaurants/schools/parks.
+- **Find**: geocodes your typed location and adds it as a subject point.
+- **Map click**: click anywhere on the map to add a custom point.
+- **Add real nearby places** chips: appends real nearby places by category.
+- **Story Points** editor: rename points, change symbol, add notes, remove points.
+- **Save Story**: persists project name, intent, points, and viewport.
+- **Give me a reason to move here**: generates a grounded relocation narrative from saved points/intent.
+- **Export image**: currently available through the API endpoint (`POST /projects/{id}/export`).
+
+## Getting the best results
+
+- Set a clear project intent (ideally at least one full sentence).
+- Keep a real **subject** location in the story (via geocode or current location).
+- Add at least 2 meaningful points or add notes to key points before generating narrative.
+- Use point notes to explain *why* each place matters; narrative quality depends on this detail.
+- Save before generating narrative or exporting so you use the latest project version.
+
+## Export image (PNG/JPEG)
+
+There is no dedicated Export button in the web UI yet; use the export API after saving:
+
+1. Save your story in the UI.
+2. Copy the project ID from the URL query string (`?project=<id>`).
+3. Use the latest saved version shown in the UI (`Saved (version X)`).
+4. Call export:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/projects/<PROJECT_ID>/export" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "projectId": "<PROJECT_ID>",
+    "projectVersion": <VERSION>,
+    "format": "png",
+    "width": 1280,
+    "height": 720
+  }' \
+  --output story.png
+```
+
+Notes:
+- `projectId` in body must match the URL project id.
+- `projectVersion` must match the latest saved version (stale versions are rejected).
+
 ## Architecture posture
 
 - Goal-oriented by default.
