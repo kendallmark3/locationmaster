@@ -87,7 +87,11 @@ function App(){
       container: mapContainer.current,
       style: MAP_STYLE,
       center: [-96.8,32.8],
-      zoom: 3
+      zoom: 3,
+      // Required to read pixels back out via getCanvas() for the image export below —
+      // WebGL clears the drawing buffer after compositing to screen otherwise, and a
+      // captured frame comes back blank.
+      canvasContextAttributes: {preserveDrawingBuffer: true},
     });
     mapRef.current.on("click",(e)=>{
       const label = window.prompt("Label this story point:");
@@ -137,9 +141,13 @@ function App(){
   const [exporting,setExporting] = useState(false);
 
   async function exportImage(){
-    if(!projectId || savedVersion==null) return;
+    if(!projectId || savedVersion==null || !mapRef.current) return;
     setExporting(true);
     try{
+      // Hits the export-boundary validation (contracts/coordinate provenance) the backend
+      // already enforces — but the file we actually hand the user is captured client-side
+      // from the live map below, so it shows real basemap tiles instead of the backend's
+      // schematic PIL-drawn placeholder.
       const r = await fetch(`/api/projects/${projectId}/export`,{
         method:"POST",
         headers:{"Content-Type":"application/json"},
@@ -153,13 +161,51 @@ function App(){
           : (typeof detail==="string" ? detail : "Export failed.");
         return alert(message);
       }
-      const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${name || "location-story"}.png`;
-      a.click();
-      URL.revokeObjectURL(url);
+
+      const map = mapRef.current;
+      const mapCanvas = map.getCanvas();
+      const dpr = window.devicePixelRatio || 1;
+      const headerH = Math.round(64 * dpr);
+      const out = document.createElement("canvas");
+      out.width = mapCanvas.width;
+      out.height = mapCanvas.height + headerH;
+      const ctx = out.getContext("2d")!;
+
+      ctx.fillStyle = "#f6f7fb";
+      ctx.fillRect(0, 0, out.width, out.height);
+      ctx.fillStyle = "#111827";
+      ctx.font = `${Math.round(20*dpr)}px sans-serif`;
+      ctx.fillText(name || "Untitled", 16*dpr, 26*dpr);
+      ctx.fillStyle = "#374151";
+      ctx.font = `${Math.round(13*dpr)}px sans-serif`;
+      ctx.fillText(intent || "", 16*dpr, 48*dpr);
+      ctx.drawImage(mapCanvas, 0, headerH);
+
+      points.forEach(p=>{
+        const proj = map.project([p.longitude, p.latitude]);
+        const px = proj.x*dpr, py = proj.y*dpr + headerH;
+        const radius = (p.symbol==="subject" ? 8 : 6) * dpr;
+        ctx.beginPath();
+        ctx.arc(px, py, radius, 0, Math.PI*2);
+        ctx.fillStyle = SYMBOL_COLORS[p.symbol] ?? SYMBOL_COLORS.custom;
+        ctx.fill();
+        ctx.lineWidth = 2*dpr;
+        ctx.strokeStyle = "#ffffff";
+        ctx.stroke();
+        ctx.fillStyle = "#111827";
+        ctx.font = `${Math.round(12*dpr)}px sans-serif`;
+        ctx.fillText(p.label, px + radius + 4, py + 4*dpr);
+      });
+
+      out.toBlob(blob=>{
+        if(!blob) return alert("Could not render the export image.");
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${name || "location-story"}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }, "image/png");
     } finally {
       setExporting(false);
     }
