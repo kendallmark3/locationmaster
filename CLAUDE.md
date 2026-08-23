@@ -65,7 +65,7 @@ This is the one architectural decision that shapes everything else. AI (Claude, 
 - `services/api/` — FastAPI backend; `app/main.py` has in-memory dict storage (`projects: dict[UUID, Project]`) as a Phase 1 placeholder for PostgreSQL/PostGIS — `POST /projects` creates, `PUT /projects/{id}` replaces the full saved state (points/center/zoom/name/intent) and bumps `version`, `GET /projects/{id}` reloads, `POST /projects/{id}/narrative` and `POST /projects/{id}/export` are the AI-narrative and export-validation endpoints; `app/geocoding.py` wraps Amazon Location Service (`geo-places`: Geocode, SearchText for nearby search, ReverseGeocode) via boto3; `app/narrative.py` calls Claude for the relocation narrative (grounds every claim in supplied points only — see `has_enough_detail`, which refuses to call the LLM at all rather than let it pad with ungrounded sentiment); `app/exporter.py` is the backend's own PIL-drawn schematic export (no real basemap — the frontend's client-side canvas capture is what produces a real map image); `app/capability_workflow.py` + `app/mcp_client.py` + `app/tools.py` implement the Skill → Tool → MCP → Hook demo (spawns `mcp-server-fetch` over stdio per call); `app/models.py` holds the Pydantic models mirroring the JSON Schema contracts
 - `infra/` — AWS CDK deployment scaffold (not yet built out)
 - `docs/` — architecture notes and ADRs
-- `dic.md` — index of what to run, when, and who runs it (skills/hooks/commands)
+- `intent/dic.md` — index of what to run, when, and who runs it (skills/hooks/commands)
 
 ### Target stack (see `docs/ARCHITECTURE.md`, `skills/aws-deployment/SKILL.md`)
 

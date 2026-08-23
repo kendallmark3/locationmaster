@@ -81,7 +81,7 @@ The backend endpoint also independently renders a basic PIL-drawn PNG (`services
 - `infra/` — AWS deployment scaffolding
 - `.claude/` — Claude Code project guidance/hooks wiring
 - `docs/` — architecture notes and ADRs
-- `dic.md` — index of skills/hooks/commands: what to run, when, and who runs it
+- `intent/dic.md` — index of skills/hooks/commands: what to run, when, and who runs it
 
 ## MVP definition
 
