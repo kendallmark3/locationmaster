@@ -36,6 +36,10 @@ class Project(BaseModel):
     zoom: float = 10
 
 
+class IntentInterpretRequest(BaseModel):
+    intent: str
+
+
 class ExportRequest(BaseModel):
     projectId: str
     projectVersion: int = Field(ge=1)

@@ -42,12 +42,17 @@ const NEARBY_CATEGORIES: {id:string; label:string}[] = [
   {id:"transit", label:"Transit"},
   {id:"hotel", label:"Hotels"},
   {id:"grocery", label:"Grocery"},
+  {id:"healthcare", label:"Healthcare"},
+  {id:"entertainment", label:"Entertainment"},
+  {id:"shopping", label:"Shopping"},
+  {id:"community", label:"Community"},
 ];
 
 const SYMBOL_COLORS: Record<string,string> = {
   subject:"#111111", coffee:"#6f4e37", restaurant:"#e2725b", golf:"#2f855a",
   school:"#2b6cb0", park:"#2f855a", transit:"#6b46c1", hotel:"#b7791f",
   grocery:"#2c7a7b", company:"#4a5568", employer:"#4a5568", custom:"#718096",
+  healthcare:"#dc2626", entertainment:"#db2777", shopping:"#f59e0b", community:"#0891b2",
 };
 
 function App(){
@@ -287,6 +292,43 @@ function App(){
   }
 
   const [locating,setLocating] = useState(false);
+  const [intentSummary,setIntentSummary] = useState<string|null>(null);
+  const [interpreting,setInterpreting] = useState(false);
+
+  // AI picks which supported categories the free-text intent implies; it never sees or
+  // returns coordinates — fetchNearby (deterministic search) is what actually resolves a
+  // category to real places, per ADR-001.
+  async function interpretIntent(intentText: string): Promise<string[]> {
+    const r = await fetch("/api/intent/interpret", {
+      method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({intent:intentText})
+    });
+    if(!r.ok){ alert((await r.json()).detail ?? "Could not interpret intent."); return []; }
+    const body = await r.json();
+    setIntentSummary(body.summary || null);
+    return body.categories ?? [];
+  }
+
+  async function buildFromIntent(){
+    if(!intent.trim() || !subjectPoint) return;
+    setInterpreting(true);
+    try{
+      const categories = await interpretIntent(intent);
+      if(!categories.length){
+        return alert("Couldn't find specific categories in that intent — try mentioning things like restaurants, schools, parks, healthcare, etc.");
+      }
+      let accumulated = pointsRef.current;
+      for(const category of categories){
+        setNearbyLoading(category);
+        const fresh = await fetchNearby(category, {lng:subjectPoint.longitude, lat:subjectPoint.latitude}, accumulated);
+        accumulated = [...accumulated, ...fresh];
+      }
+      setNearbyLoading(null);
+      setPoints(accumulated);
+      fitToPoints(accumulated);
+    } finally {
+      setInterpreting(false);
+    }
+  }
 
   async function useMyLocation(){
     if(!navigator.geolocation) return alert("Geolocation is not available in this browser.");
@@ -298,7 +340,9 @@ function App(){
         if(!r.ok){ alert((await r.json()).detail ?? "Could not determine your address."); return; }
         const place = await r.json();
         setName(place.label);
-        setIntent(`Show why ${place.label} is a great place to call home.`);
+        // Don't clobber an intent the user already wrote — only fill the default when empty.
+        const effectiveIntent = intent.trim() || `Show why ${place.label} is a great place to call home.`;
+        if(!intent.trim()) setIntent(effectiveIntent);
         const subject: Point = {
           id: crypto.randomUUID(), label: place.label, category:"subject", symbol:"subject",
           longitude: place.longitude, latitude: place.latitude,
@@ -306,8 +350,14 @@ function App(){
         };
         mapRef.current?.flyTo({center:[place.longitude, place.latitude], zoom:14});
 
+        let categories = ["coffee","restaurant","school","park"];
+        if(intent.trim()){
+          const interpreted = await interpretIntent(effectiveIntent);
+          if(interpreted.length) categories = interpreted;
+        }
+
         let accumulated = [subject];
-        for(const category of ["coffee","restaurant","school","park"]){
+        for(const category of categories){
           setNearbyLoading(category);
           const fresh = await fetchNearby(category, {lng:place.longitude, lat:place.latitude}, accumulated);
           accumulated = [...accumulated, ...fresh];
@@ -344,12 +394,18 @@ function App(){
       <button className="primary" onClick={useMyLocation} disabled={locating || nearbyLoading!=null}>
         {locating ? (nearbyLoading ? `Finding ${nearbyLoading}…` : "Locating…") : "Use my location — fill in everything"}
       </button>
-      <p className="hint">Fills project name, intent, subject point, and nearby coffee/restaurants/schools/parks from your current location.</p>
+      <p className="hint">Fills project name and subject point from your current location. Uses your intent above (if you've written one) to pick which nearby categories to add; otherwise defaults to coffee/restaurants/schools/parks.</p>
       <label>Project name</label>
       <input value={name} onChange={e=>setName(e.target.value)} placeholder="Q3 site selection story" />
       <label>What story are you trying to tell?</label>
       <textarea value={intent} onChange={e=>setIntent(e.target.value)}
         placeholder="Build the strongest location story for this property..." />
+      <button className="primary" disabled={!intent.trim() || !subjectPoint || interpreting || nearbyLoading!=null}
+        onClick={buildFromIntent}>
+        {interpreting ? (nearbyLoading ? `Finding ${nearbyLoading}…` : "Reading intent…") : "Build map from this intent"}
+      </button>
+      {!subjectPoint && <p className="hint">Find or place a subject point first, then this will pick relevant nearby categories from your intent.</p>}
+      {intentSummary && <p className="hint">Map focus: {intentSummary}</p>}
       <label>Find a location</label>
       <div className="row"><input value={query} onChange={e=>setQuery(e.target.value)} /><button onClick={search}>Find</button></div>
       <p className="hint">Or click anywhere on the map to add a custom point.</p>

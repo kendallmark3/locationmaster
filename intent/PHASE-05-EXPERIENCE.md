@@ -7,11 +7,20 @@ Location Story Engine — Version 0.5 Experience Upgrade
   then captures the live MapLibre canvas client-side (`canvasContextAttributes.preserveDrawingBuffer`)
   and composites story points on top, downloading a real PNG. Matches this doc's guidance
   in §15 (canvas preservation) and §13 (browser-side over server rendering-farm).
-- ❌ **Item 2–6 (Intent-driven category interpretation)** — not started. No
-  `POST /intent/interpret` endpoint or `InterpretedMapIntent` contract exists yet; nearby-place
-  category chips (`apps/web/src/main.tsx` `NEARBY_CATEGORIES`) are still manually selected only.
+- ✅ **Item 2–6 (Intent-driven category interpretation)** — done.
+  `POST /intent/interpret` (`services/api/app/intent_interpreter.py`) sends the user's free
+  text plus the supported category id list to Claude, gets back `{summary, categories}`,
+  and filters `categories` to the supported set server-side (unknown model output can't
+  leak into search). Frontend: **Build map from this intent** button (needs intent text +
+  a subject point) runs the interpreted categories through the existing nearby-search
+  loop and shows "Map focus: …" near the intent field, in plain language per this doc's
+  §6 guidance. `useMyLocation` also uses this — if the user already typed an intent before
+  clicking it, that intent now drives category selection instead of being overwritten and
+  falling back to a fixed default set (a bug this fix also caught). Category registry grew
+  from 7 to 11 ids to actually cover common asks: added `healthcare`, `entertainment`,
+  `shopping`, `community`.
 - ❌ **Item 7–11 (Category-aware icon markers + legend)** — not started. Markers are still
-  flat colored dots (`SYMBOL_COLORS` in `main.tsx`), no icon library, no legend.
+  flat colored dots (`SYMBOL_COLORS` in `main.tsx`, now 11 colors), no icon library, no legend.
 - ❌ **Item 18–23 (Layout/navigation polish)** — not started. Sidebar is still one long
   scrolling form; no header/nav, no centered pre-map setup card.
 

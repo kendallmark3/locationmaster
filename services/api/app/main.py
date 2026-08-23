@@ -5,9 +5,10 @@ from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Response
 from uuid import UUID
-from .models import ExportRequest, Project, ProjectCreate, ProjectSave, StoryPoint
+from .models import ExportRequest, IntentInterpretRequest, Project, ProjectCreate, ProjectSave, StoryPoint
 from .geocoding import AwsLocationGeocoder
 from .narrative import generate_relocation_narrative, has_enough_detail
+from .intent_interpreter import interpret_map_intent
 from .exporter import render_project_image
 from hooks.pre_export import validate_exportable_project
 from .capability_workflow import run_capability_check
@@ -84,7 +85,26 @@ NEARBY_CATEGORY_QUERIES = {
     "transit": "public transit station",
     "hotel": "hotel",
     "grocery": "grocery store",
+    "healthcare": "urgent care clinic",
+    "entertainment": "movie theater",
+    "shopping": "shopping center",
+    "community": "community center",
 }
+
+@app.post("/intent/interpret")
+def intent_interpret(payload: IntentInterpretRequest):
+    if not payload.intent.strip():
+        raise HTTPException(422, "Intent text is required.")
+    try:
+        return interpret_map_intent(payload.intent, list(NEARBY_CATEGORY_QUERIES))
+    except (anthropic.AuthenticationError, TypeError):
+        raise HTTPException(502, "Intent interpretation is not configured (missing or invalid API credentials).")
+    except anthropic.RateLimitError:
+        raise HTTPException(503, "Intent interpretation is rate-limited; try again shortly.")
+    except anthropic.APIStatusError as exc:
+        raise HTTPException(502, f"Intent interpretation failed: {exc.message}")
+    except anthropic.APIConnectionError:
+        raise HTTPException(503, "Could not reach the intent interpretation service.")
 
 @app.get("/places/nearby")
 def places_nearby(lng: float, lat: float, category: str):
