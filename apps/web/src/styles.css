@@ -14,3 +14,7 @@ textarea{width:100%;min-height:120px;margin:8px 0 18px;padding:10px}
 .chip:disabled{opacity:.5}
 .narrative{margin-top:12px;padding:12px;background:#f6f6f4;border-radius:6px;font-size:14px;line-height:1.5}
 .story-marker{width:22px;height:22px;border-radius:50%;background:#111;border:3px solid white;box-shadow:0 1px 4px #555}
+.cap-result{margin-top:10px;font-size:13px}
+.cap-step{padding:2px 0}.cap-step.passed{color:#276749}.cap-step.failed{color:#c53030}
+.cap-joke{margin-top:10px;padding:10px;background:#f6f6f4;border-radius:6px;line-height:1.6}
+.cap-error{margin-top:10px;padding:8px;background:#fff5f5;color:#c53030;border-radius:6px;font-size:12px}
