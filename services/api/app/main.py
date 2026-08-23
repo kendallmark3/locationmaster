@@ -3,11 +3,12 @@ from pathlib import Path
 import anthropic
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from uuid import UUID
-from .models import Project, ProjectCreate, ProjectSave, StoryPoint
+from .models import ExportRequest, Project, ProjectCreate, ProjectSave, StoryPoint
 from .geocoding import AwsLocationGeocoder
 from .narrative import generate_relocation_narrative, has_enough_detail
+from .exporter import render_project_image
 from hooks.pre_export import validate_exportable_project
 
 # Explicit path: uvicorn is run from the repo root per README, so the default
@@ -125,18 +126,26 @@ def narrative(project_id: UUID):
     return {"narrative": text}
 
 @app.post("/projects/{project_id}/export")
-def export(project_id: UUID):
+def export(project_id: UUID, payload: ExportRequest):
     project = get_project(project_id)
+    if payload.projectId != str(project.id):
+        raise HTTPException(409, "projectId does not match the requested project.")
+    if payload.projectVersion != project.version:
+        raise HTTPException(409, "projectVersion is stale; reload and retry export.")
     errors = validate_exportable_project({
         "intent": project.rawIntent,
         "points": [p.model_dump(mode="json") for p in project.points],
     })
     if errors:
         raise HTTPException(422, {"errors": errors})
-    # Phase 1 scaffold: runtime renderer/S3 implementation plugs in here.
-    return {
-        "status": "validated",
-        "projectId": str(project.id),
-        "projectVersion": project.version,
-        "message": "Project is exportable; renderer is the next vertical slice."
-    }
+    content = render_project_image(project, payload.format, payload.width, payload.height)
+    media_type = "image/png" if payload.format == "png" else "image/jpeg"
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "X-Project-Id": str(project.id),
+            "X-Project-Version": str(project.version),
+            "Content-Disposition": f'inline; filename="{project.id}.{payload.format}"',
+        },
+    )
