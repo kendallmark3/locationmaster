@@ -10,6 +10,7 @@ from .geocoding import AwsLocationGeocoder
 from .narrative import generate_relocation_narrative, has_enough_detail
 from .exporter import render_project_image
 from hooks.pre_export import validate_exportable_project
+from .capability_workflow import run_capability_check
 
 # Explicit path: uvicorn is run from the repo root per README, so the default
 # load_dotenv() cwd-search would miss services/api/.env.
@@ -124,6 +125,11 @@ def narrative(project_id: UUID):
     except anthropic.APIConnectionError:
         raise HTTPException(503, "Could not reach the narrative generation service.")
     return {"narrative": text}
+
+@app.post("/capability-check")
+async def capability_check():
+    return await run_capability_check()
+
 
 @app.post("/projects/{project_id}/export")
 def export(project_id: UUID, payload: ExportRequest):

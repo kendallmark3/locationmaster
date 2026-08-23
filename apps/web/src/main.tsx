@@ -62,6 +62,25 @@ function App(){
   const [narrative,setNarrative] = useState<string|null>(null);
   const [narrativeLoading,setNarrativeLoading] = useState(false);
 
+  type CapStep = {name:string; status:string; detail?:string};
+  type CapResult = {success:boolean; workflow?:string; steps?:CapStep[]; result?:{setup:string;punchline:string}; failedStep?:string; message?:string};
+  const [capResult,setCapResult] = useState<CapResult|null>(null);
+  const [capLoading,setCapLoading] = useState(false);
+
+  async function runCapabilityCheck(){
+    setCapLoading(true);
+    setCapResult(null);
+    try{
+      const r = await fetch("/api/capability-check",{method:"POST"});
+      const body = await r.json();
+      setCapResult(body);
+    } catch(e){
+      setCapResult({success:false, message:String(e)});
+    } finally {
+      setCapLoading(false);
+    }
+  }
+
   useEffect(()=>{
     if(!mapContainer.current || mapRef.current) return;
     mapRef.current = new maplibregl.Map({
@@ -285,6 +304,23 @@ function App(){
       </button>
       {!projectId && <p className="hint">Save the story first to generate a reason.</p>}
       {narrative && <p className="narrative">{narrative}</p>}
+      <h2>System Capabilities</h2>
+      <button className="primary" disabled={capLoading} onClick={runCapabilityCheck}>
+        {capLoading ? "Running capability workflow…" : "Run Capability Check"}
+      </button>
+      {capResult && <div className="cap-result">
+        {capResult.steps?.map(s=><div key={s.name} className={`cap-step ${s.status}`}>
+          {s.status==="passed"?"✓":"✕"} {s.name}{s.detail ? `: ${s.detail}` : ""}
+        </div>)}
+        {capResult.success && capResult.result && <div className="cap-joke">
+          <strong>Joke of the Day</strong><br/>
+          <em>{capResult.result.setup}</em><br/>
+          {capResult.result.punchline}
+        </div>}
+        {!capResult.success && <div className="cap-error">
+          ✕ {capResult.failedStep ?? "error"}: {capResult.message ?? "Capability check failed."}
+        </div>}
+      </div>}
     </aside>
     <main ref={mapContainer}/>
   </div>
