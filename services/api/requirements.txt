@@ -9,6 +9,7 @@ python-dotenv>=1.0
 python-jose[cryptography]>=3.3
 httpx>=0.27
 pytest>=8.0
+pytest-asyncio>=0.24
 pillow>=12.3.0
 mcp>=1.0
 mcp-server-fetch>=2024.1
