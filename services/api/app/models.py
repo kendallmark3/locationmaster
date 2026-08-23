@@ -34,3 +34,11 @@ class Project(BaseModel):
     points: list[StoryPoint] = []
     center: tuple[float, float] | None = None
     zoom: float = 10
+
+
+class ExportRequest(BaseModel):
+    projectId: str
+    projectVersion: int = Field(ge=1)
+    format: Literal["png", "jpeg"]
+    width: int = Field(default=1280, ge=640, le=4096)
+    height: int = Field(default=720, ge=480, le=4096)
