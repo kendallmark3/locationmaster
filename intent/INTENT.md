@@ -1,5 +1,26 @@
 # Intent — Location Story Engine
 
+## Status: Mostly implemented, two acceptance criteria still open
+
+Implemented: intent capture, subject geocode, interactive MapLibre map, story-point
+CRUD (add via search/map-click/nearby-search, edit label/symbol/notes, remove),
+save/reload via `PUT /projects/{id}` + `?project=<id>` URL param, coordinate provenance
+enforcement (`coordinateSource` + `providerPlaceId`, `hooks/enforce_coordinate_provenance.py`),
+export-boundary validation (`hooks/pre_export.py`) plus a working image export (see
+`intent/PHASE-05-EXPERIENCE.md` status), and contract validation
+(`hooks/validate_contracts.py`). Also built beyond this document's original scope:
+real nearby-places search, AI-generated relocation narrative, "use my location"
+auto-fill, and a capability-check demo (`intent/v1intent.md`) — none of these violate
+the AI/geographic-truth boundary below; see each feature's code comments for how.
+
+Still open from this document's Success Criteria / Acceptance Criteria:
+- **Authentication** — no Cognito integration yet; the API has no auth, and projects
+  aren't user-owned (in-memory `dict[UUID, Project]` in `services/api/app/main.py`).
+- **Persistence** — still the in-memory dict, not PostgreSQL/PostGIS; state is lost on
+  backend restart. `DATABASE_URL` is defined in `.env.example` but unused.
+- **Artifact storage** — exported images download directly to the browser; nothing is
+  stored in S3 or linked to project/user ownership with a timestamp record.
+
 ## Intent / Goal
 
 Build the smallest enterprise-ready Location Story Engine that turns a user's plain-language location intent into an editable map-based story.

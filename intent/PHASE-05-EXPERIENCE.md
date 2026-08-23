@@ -1,5 +1,22 @@
 Location Story Engine — Version 0.5 Experience Upgrade
 
+## Status: Partially implemented
+
+- ✅ **Item 12–17 (Actual Image Export)** — done. `apps/web/src/main.tsx`'s Export Image
+  button reuses the backend's export-validation boundary (`POST /projects/{id}/export`),
+  then captures the live MapLibre canvas client-side (`canvasContextAttributes.preserveDrawingBuffer`)
+  and composites story points on top, downloading a real PNG. Matches this doc's guidance
+  in §15 (canvas preservation) and §13 (browser-side over server rendering-farm).
+- ❌ **Item 2–6 (Intent-driven category interpretation)** — not started. No
+  `POST /intent/interpret` endpoint or `InterpretedMapIntent` contract exists yet; nearby-place
+  category chips (`apps/web/src/main.tsx` `NEARBY_CATEGORIES`) are still manually selected only.
+- ❌ **Item 7–11 (Category-aware icon markers + legend)** — not started. Markers are still
+  flat colored dots (`SYMBOL_COLORS` in `main.tsx`), no icon library, no legend.
+- ❌ **Item 18–23 (Layout/navigation polish)** — not started. Sidebar is still one long
+  scrolling form; no header/nav, no centered pre-map setup card.
+
+Everything else in this document (below) remains the target spec for the unimplemented items.
+
 Intent / Goal
 
 Upgrade the existing Location Story Engine from the current working MVP into a more compelling Version 0.5 experience without redesigning the architecture or expanding into future intelligence features.

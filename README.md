@@ -22,7 +22,9 @@ A focused enterprise-ready starter for building location stories from intent.
 - **Story Points** editor: rename points, change symbol, add notes, remove points.
 - **Save Story**: persists project name, intent, points, and viewport.
 - **Give me a reason to move here**: generates a grounded relocation narrative from saved points/intent.
-- **Export image**: currently available through the API endpoint (`POST /projects/{id}/export`).
+- **Export Image**: downloads a real PNG of the live map — actual basemap tiles plus your story points — after the backend's export-boundary validation passes.
+- **Run Capability Check**: a small "System Capabilities" panel that proves out the Skill → Tool → MCP → Hook chain live (calls the official Fetch MCP server to pull a joke from a public API), not a canned demo.
+- **Map basemap**: defaults to a free OpenFreeMap dev style; set `VITE_MAPBOX_TOKEN` in `apps/web/.env` for real Mapbox raster tiles instead (see `apps/web/.env.example`).
 
 ## Getting the best results
 
@@ -32,31 +34,15 @@ A focused enterprise-ready starter for building location stories from intent.
 - Use point notes to explain *why* each place matters; narrative quality depends on this detail.
 - Save before generating narrative or exporting so you use the latest project version.
 
-## Export image (PNG/JPEG)
+## Export image (PNG)
 
-There is no dedicated Export button in the web UI yet; use the export API after saving:
+Click **Export Image** in the sidebar after saving. Under the hood:
 
-1. Save your story in the UI.
-2. Copy the project ID from the URL query string (`?project=<id>`).
-3. Use the latest saved version shown in the UI (`Saved (version X)`).
-4. Call export:
+1. The frontend calls `POST /projects/{id}/export` with the saved `projectVersion` — this is purely an export-boundary validation call (contracts + coordinate provenance via `hooks/pre_export.py`); a stale or invalid version is rejected here.
+2. On success, the frontend captures the *live* MapLibre canvas (`map.getCanvas()`, requires `canvasContextAttributes.preserveDrawingBuffer`) and composites your story points on top client-side, so the downloaded file shows the real basemap tiles you're looking at rather than a schematic diagram.
+3. A PNG downloads automatically, named after the project.
 
-```bash
-curl -X POST "http://127.0.0.1:8000/projects/<PROJECT_ID>/export" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "projectId": "<PROJECT_ID>",
-    "projectVersion": <VERSION>,
-    "format": "png",
-    "width": 1280,
-    "height": 720
-  }' \
-  --output story.png
-```
-
-Notes:
-- `projectId` in body must match the URL project id.
-- `projectVersion` must match the latest saved version (stale versions are rejected).
+The backend endpoint also independently renders a basic PIL-drawn PNG (`services/api/app/exporter.py`) — a flat schematic with plotted dots, no basemap imagery. That's what you get calling the endpoint directly (e.g. via `curl`) without the frontend's canvas-capture step; the UI button is the one that produces a real map image.
 
 ## Architecture posture
 
@@ -72,27 +58,30 @@ Notes:
 ## Technology choices
 
 - Frontend: React + TypeScript + Vite
-- Map: MapLibre GL JS
+- Map: MapLibre GL JS (OpenFreeMap dev style by default; optional Mapbox raster basemap)
 - Backend: FastAPI + Python
-- Persistence: PostgreSQL/PostGIS
-- Auth: Amazon Cognito
-- Maps/Geocoding/Places: Amazon Location Service
-- Artifact storage: Amazon S3
+- AI: Anthropic Claude (relocation narrative generation, capability-check demo)
+- External tool protocol: MCP (Model Context Protocol) — official `mcp-server-fetch` reference server
+- Persistence: PostgreSQL/PostGIS (Phase 1 currently uses in-memory storage; DB wiring is future work)
+- Auth: Amazon Cognito (not yet wired — future work)
+- Maps/Geocoding/Places: Amazon Location Service (`geo-places`: Geocode, SearchText, ReverseGeocode)
+- Artifact storage: Amazon S3 (not yet wired — exports currently download directly to the browser)
 - Deployment: AWS CDK starter
 - Local development: Docker Compose
 
 ## Repo layout
 
-- `intent/` — product and phase intent files
+- `intent/` — product and phase intent files (`INTENT.md` is Phase 1; `v1intent.md` and `PHASE-05-EXPERIENCE.md` are later intents — see status notes in each)
 - `contracts/` — structured handoff schemas
-- `skills/` — reusable AI/process knowledge
-- `hooks/` — deterministic guardrails
+- `skills/` — reusable AI/process knowledge, including `capability-check/SKILL.md` for the MCP demo
+- `hooks/` — deterministic guardrails, including `validate_capability_result.py` (capability-check hook)
 - `agents/` — narrowly justified subagent definitions
 - `apps/web/` — React app
-- `services/api/` — FastAPI service
+- `services/api/` — FastAPI service; notable modules beyond the core CRUD/geocoding: `narrative.py` (Claude relocation narrative), `exporter.py` (PIL schematic export), `capability_workflow.py` + `mcp_client.py` + `tools.py` (Skill → Tool → MCP → Hook demo)
 - `infra/` — AWS deployment scaffolding
 - `.claude/` — Claude Code project guidance/hooks wiring
 - `docs/` — architecture notes and ADRs
+- `dic.md` — index of skills/hooks/commands: what to run, when, and who runs it
 
 ## MVP definition
 
@@ -126,7 +115,21 @@ npm install
 npm run dev
 ```
 
-Copy `.env.example` files as needed.
+Copy `.env.example` files as needed (`services/api/.env.example`, `apps/web/.env.example`).
+
+### Required credentials for live features
+
+- **`services/api/.env` → `ANTHROPIC_API_KEY`** — required for "Give me a reason to move here" and the capability-check joke result.
+- **AWS credentials** (standard credential chain — `~/.aws/credentials`, env vars, etc.) for the IAM identity used by `boto3`, with an inline policy granting at minimum:
+  ```json
+  {
+    "Effect": "Allow",
+    "Action": ["geo-places:Geocode", "geo-places:SearchText", "geo-places:ReverseGeocode"],
+    "Resource": "arn:aws:geo-places:us-east-1::provider/default"
+  }
+  ```
+  Without this, `/geocode`, `/places/nearby`, and `/reverse-geocode` return a clean 502 with the real AWS error rather than crashing — but none of the location features work.
+- **`apps/web/.env` → `VITE_MAPBOX_TOKEN`** — optional. Without it, the map falls back to a free OpenFreeMap dev style (works fine, just less detailed/no key needed).
 
 ## Definition of done for Phase 1
 

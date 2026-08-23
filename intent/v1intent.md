@@ -1,3 +1,17 @@
+## Status: Implemented
+
+The full chain described below is built and working: `skills/capability-check/SKILL.md`,
+`services/api/app/tools.py` (`get_application_status`), `services/api/app/mcp_client.py`
+(spawns `mcp-server-fetch` over stdio per call — no separate process to start), `hooks/validate_capability_result.py`,
+`services/api/app/capability_workflow.py` (`run_capability_check`), the
+`POST /capability-check` endpoint, and a "System Capabilities" panel in `apps/web/src/main.tsx`
+with a **Run Capability Check** button. Tests: `services/api/tests/test_capability_workflow.py`
+(mocked MCP call for the default suite, plus a real-integration test gated behind
+`CAPABILITY_INTEGRATION=1`). Requires `ANTHROPIC_API_KEY`? No — this workflow is deterministic,
+no LLM call, per the "Optional LLM Orchestration" section below.
+
+---
+
 Yes. For V1, I’d use the official Fetch MCP reference server. It’s MIT-licensed, free, requires no API key, and can run locally with uvx mcp-server-fetch. That gives us a genuine MCP tool call without introducing another SaaS dependency. 
 
 The important distinction I put into the intent: don’t merely configure MCP for Claude Code. Make the application demonstrate the capability so you can actually see Skill → workflow/tool orchestration → MCP call → Hook validation → UI evidence. For a visible demo, Fetch MCP can retrieve a random joke from the free Official Joke API, which requires no signup or key. 

@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Read `intent/INTENT.md` first — it is the source of truth for scope, acceptance criteria, and stop conditions for the current phase (Phase 1, see `intent/PHASE-01-MAP-STORY.md`).
+Read `intent/INTENT.md` first — it is the source of truth for scope, acceptance criteria, and stop conditions for the current phase (Phase 1, see `intent/PHASE-01-MAP-STORY.md`). Each intent file's own "Status" section at the top says what's actually implemented vs. still spec — trust that over the rest of the document's prose, which describes the target, not necessarily the current state. Later intents build on Phase 1: `intent/v1intent.md` (Skill → Tool → MCP → Hook capability-check demo, implemented) and `intent/PHASE-05-EXPERIENCE.md` (UX upgrade, partially implemented — see its status note for exactly which parts).
 
 ## Commands
 
@@ -58,17 +58,22 @@ This is the one architectural decision that shapes everything else. AI (Claude, 
 
 - `intent/` — product/phase intent (read `INTENT.md` first)
 - `contracts/` — JSON Schema handoff contracts (authoritative)
-- `hooks/` — deterministic guardrails (non-optional; not just Claude Code hooks)
-- `skills/` — reusable organizational knowledge for AI-assisted work (geocoding provenance rules, map composition defaults, AWS deployment posture, location-story-builder behavior)
+- `hooks/` — deterministic guardrails (non-optional; not just Claude Code hooks), including `validate_capability_result.py` for the capability-check demo
+- `skills/` — reusable organizational knowledge for AI-assisted work (geocoding provenance rules, map composition defaults, AWS deployment posture, location-story-builder behavior, `capability-check` for the MCP demo)
 - `agents/` — narrowly-scoped subagent definitions; only two exist (`architecture-reviewer`, `intent-normalizer`), each with a stated reason and an explicit context-passing policy — don't create new ones without a comparable justification
-- `apps/web/` — React + TypeScript + Vite frontend (MapLibre GL for mapping); `src/main.tsx` is a single-file app (no component split yet) covering intent capture, geocode search, map-click point add, and story-point edit/remove; the dev server proxies `/api` to the FastAPI backend at `127.0.0.1:8000` (`vite.config.ts`)
-- `services/api/` — FastAPI backend; `app/main.py` has in-memory dict storage (`projects: dict[UUID, Project]`) as a Phase 1 placeholder for PostgreSQL/PostGIS — `POST /projects` creates, `PUT /projects/{id}` replaces the full saved state (points/center/zoom/name/intent) and bumps `version`, `GET /projects/{id}` reloads; `app/geocoding.py` wraps Amazon Location Service (`geo-places`) via boto3, `app/models.py` holds the Pydantic models mirroring the JSON Schema contracts
+- `apps/web/` — React + TypeScript + Vite frontend (MapLibre GL for mapping); `src/main.tsx` is a single-file app (no component split yet) covering intent capture, geocode search, map-click point add, "use my location" auto-fill, real nearby-places chips, story-point edit/remove with notes, AI narrative generation, client-side map-canvas image export, and a capability-check panel; the dev server proxies `/api` to the FastAPI backend at `127.0.0.1:8000` (`vite.config.ts`); optional `VITE_MAPBOX_TOKEN` swaps the default OpenFreeMap dev basemap for real Mapbox raster tiles
+- `services/api/` — FastAPI backend; `app/main.py` has in-memory dict storage (`projects: dict[UUID, Project]`) as a Phase 1 placeholder for PostgreSQL/PostGIS — `POST /projects` creates, `PUT /projects/{id}` replaces the full saved state (points/center/zoom/name/intent) and bumps `version`, `GET /projects/{id}` reloads, `POST /projects/{id}/narrative` and `POST /projects/{id}/export` are the AI-narrative and export-validation endpoints; `app/geocoding.py` wraps Amazon Location Service (`geo-places`: Geocode, SearchText for nearby search, ReverseGeocode) via boto3; `app/narrative.py` calls Claude for the relocation narrative (grounds every claim in supplied points only — see `has_enough_detail`, which refuses to call the LLM at all rather than let it pad with ungrounded sentiment); `app/exporter.py` is the backend's own PIL-drawn schematic export (no real basemap — the frontend's client-side canvas capture is what produces a real map image); `app/capability_workflow.py` + `app/mcp_client.py` + `app/tools.py` implement the Skill → Tool → MCP → Hook demo (spawns `mcp-server-fetch` over stdio per call); `app/models.py` holds the Pydantic models mirroring the JSON Schema contracts
 - `infra/` — AWS CDK deployment scaffold (not yet built out)
 - `docs/` — architecture notes and ADRs
+- `dic.md` — index of what to run, when, and who runs it (skills/hooks/commands)
 
 ### Target stack (see `docs/ARCHITECTURE.md`, `skills/aws-deployment/SKILL.md`)
 
-React/TypeScript/Vite + MapLibre GL → FastAPI → PostgreSQL/PostGIS, with Cognito auth, Amazon Location Service for geocoding, S3 for exported artifacts, deployed via CDK (S3+CloudFront for the frontend, ECS Fargate for the API). Much of this (auth, real persistence, the renderer/S3 export pipeline) is not implemented yet — `main.py`'s export endpoint explicitly stops at "project is exportable" and notes the renderer is the next vertical slice.
+React/TypeScript/Vite + MapLibre GL → FastAPI → PostgreSQL/PostGIS, with Cognito auth, Amazon Location Service for geocoding, S3 for exported artifacts, deployed via CDK (S3+CloudFront for the frontend, ECS Fargate for the API). Auth, real persistence, and S3-backed artifact storage are not implemented yet (see the status note atop `intent/INTENT.md` for exactly what's open); export itself now works end-to-end (validation boundary + a real downloaded image), it just isn't archived server-side.
+
+### Live AWS/Anthropic calls need real credentials
+
+`app/geocoding.py` and `app/narrative.py` make live calls, not mocks — missing/insufficient credentials surface as clean 502/503s (not crashes) rather than silently no-op'ing. `README.md`'s "Required credentials for live features" section has the exact IAM policy and env vars needed.
 
 ## Operating rules
 

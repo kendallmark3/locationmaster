@@ -1,5 +1,13 @@
 # Phase 01 — Interactive Location Story
 
+## Status
+
+Steps 2–7 (intent capture through save/reload) are complete. Step 8's export *boundary*
+(validation) is complete and working; the *artifact record* half (persisted, linked to
+project/user ownership with a timestamp) is not — exports currently just download to the
+browser. Step 1 (project shell) has no auth shell, since Cognito isn't wired up yet — see
+`intent/INTENT.md` status note for the full detail on both gaps.
+
 ## Goal
 Deliver a working vertical slice from authenticated project creation through saved editable map story and basic export.
 
