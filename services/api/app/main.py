@@ -82,7 +82,7 @@ NEARBY_CATEGORY_QUERIES = {
     "restaurant": "restaurant",
     "school": "school",
     "park": "park",
-    "transit": "public transit station",
+    "transit": "train station",
     "hotel": "hotel",
     "grocery": "grocery store",
     "healthcare": "urgent care clinic",
